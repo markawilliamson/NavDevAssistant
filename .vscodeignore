@@ -1,0 +1,11 @@
+node_modules
+.git
+.gitignore
+.vscode
+.navdevassistant-example.json
+*.vsix
+*.png
+npm-debug.log
+yarn.lock
+package-lock.json
+

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Packaged extension artifacts
+*.vsix
+parser/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build and test output
+out/
+dist/
+coverage/
+.vscode-test/
+
+# OS/editor noise
+.DS_Store
+.vscode/
