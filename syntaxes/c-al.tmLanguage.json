@@ -1,0 +1,254 @@
+{
+  "name": "C/AL",
+  "scopeName": "source.nav-cal",
+  "foldingStartMarker": "\\b(BEGIN|REPEAT|CASE|WITH|FOR|IF)\\b|\\{",
+  "foldingStopMarker": "\\bEND\\b|\\bUNTIL\\b|\\}",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#procedureDeclaration" },
+    { "include": "#variableDeclaration" },
+    { "include": "#recordKnownMethodCall" },
+    { "include": "#recordQuotedFieldAccess" },
+    { "include": "#memberFunctionCall" },
+    { "include": "#recordFieldAccess" },
+    { "include": "#optionMember" },
+    { "include": "#functionCall" },
+    { "include": "#systemCall" },
+    { "include": "#quotedIdentifier" },
+    { "include": "#flowKeywords" },
+    { "include": "#operators" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#variableUsage" },
+    { "include": "#numbers" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.nav-cal",
+          "begin": "//",
+          "end": "$"
+        },
+        {
+          "name": "comment.block.brace.nav-cal",
+          "begin": "\\{",
+          "end": "\\}"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.single.nav-cal",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.nav-cal",
+          "match": "''|\\\\."
+        },
+        {
+          "name": "constant.other.placeholder.nav-cal",
+          "match": "%\\d+"
+        }
+      ]
+    },
+    "quotedIdentifier": {
+      "name": "meta.field.quoted.nav-cal",
+      "match": "(\")([^\"]+)(\")",
+      "captures": {
+        "1": { "name": "punctuation.definition.field.begin.nav-cal" },
+        "2": { "name": "variable.other.property.field.name.nav-cal variable.other.property.nav-cal support.variable.property.nav-cal" },
+        "3": { "name": "punctuation.definition.field.end.nav-cal" }
+      }
+    },
+    "procedureDeclaration": {
+      "name": "meta.procedure.nav-cal",
+      "match": "\\b(?:(LOCAL)\\s+)?(PROCEDURE)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:(@)(\\d+))?",
+      "captures": {
+        "1": { "name": "storage.modifier.local.nav-cal" },
+        "2": { "name": "storage.type.procedure.nav-cal" },
+        "3": { "name": "entity.name.function.nav-cal" },
+        "4": { "name": "punctuation.definition.symbol-id.nav-cal" },
+        "5": { "name": "constant.numeric.symbol-id.nav-cal" }
+      }
+    },
+    "variableDeclaration": {
+      "name": "meta.variable.record.nav-cal",
+      "match": "\\b(?:(VAR)\\s+)?(\"[^\"]+\"|[A-Za-z_][A-Za-z0-9_]*)(?:(@)(\\d+))?\\s*:\\s*(?:TEMPORARY\\s+)?(Action|Automation|BigInteger|BigText|Binary|BLOB|Boolean|Char|Code|Codeunit|Date|DateFormula|DateTime|Decimal|Dialog|Duration|FieldRef|File|GUID|InStream|Integer|KeyRef|OCX|Option|OutStream|Page|Query|Record|RecordID|RecordRef|Report|TableFilter|Text|Time|Variant|XMLport)\\b(?:\\s*\\[[^\\]\\r\\n]+\\])?(?:\\s+([^;\\r\\n]+?))?(?=\\s*;|\\s*$)",
+      "captures": {
+        "1": { "name": "storage.modifier.var.nav-cal" },
+        "2": { "name": "variable.other.declaration.nav-cal entity.name.variable.nav-cal" },
+        "3": { "name": "punctuation.definition.symbol-id.nav-cal" },
+        "4": { "name": "constant.numeric.symbol-id.nav-cal" },
+        "5": { "name": "support.type.nav-cal" },
+        "6": { "name": "constant.numeric.object-id.nav-cal" }
+      }
+    },
+    "recordKnownMethodCall": {
+      "name": "meta.method-call.nav-cal",
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(\\s*\\.\\s*)(ADDLINK|ASCENDING|CALCFIELDS|CALCSUMS|CHANGECOMPANY|CLEARMARKS|CONSISTENT|COPY|COPYFILTER|COPYFILTERS|COPYLINKS|COUNT|CURRENTCOMPANY|CURRENTKEY|DELETE|DELETEALL|DELETELINKS|FIELDERROR|FIELDCAPTION|FIELDNAME|FIELDNO|FILTERGROUP|FIND|FINDFIRST|FINDLAST|FINDSET|GET|GETFILTER|GETFILTERS|GETPOSITION|GETRANGEMAX|GETRANGEMIN|GETVIEW|HASLINKS|HASFILTER|INIT|INSERT|ISEMPTY|ISTEMPORARY|LOCKTABLE|MARK|MARKEDONLY|MODIFY|MODIFYALL|NEXT|READPERMISSION|RECORDID|RENAME|RESET|SETAUTOCALCFIELDS|SETASCENDING|SETCURRENTKEY|SETFILTER|SETPERMISSIONFILTER|SETPOSITION|SETRANGE|SETRECFILTER|SETVIEW|TABLECAPTION|TABLENAME|TESTFIELD|TRANSFERFIELDS|VALIDATE|WRITEPERMISSION)\\b",
+      "captures": {
+        "1": { "name": "variable.other.record.nav-cal variable.other.object.nav-cal variable.other.nav-cal entity.name.variable.nav-cal" },
+        "2": { "name": "punctuation.accessor.dot.nav-cal" },
+        "3": { "name": "entity.name.function.member.nav-cal" }
+      }
+    },
+    "recordQuotedFieldAccess": {
+      "name": "meta.field-access.quoted.nav-cal",
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(\\s*\\.\\s*)(\")([^\"]+)(\")",
+      "captures": {
+        "1": { "name": "variable.other.record.nav-cal variable.other.object.nav-cal variable.other.nav-cal entity.name.variable.nav-cal" },
+        "2": { "name": "punctuation.accessor.dot.nav-cal" },
+        "3": { "name": "punctuation.definition.field.begin.nav-cal" },
+        "4": { "name": "variable.other.property.field.name.nav-cal variable.other.property.nav-cal support.variable.property.nav-cal" },
+        "5": { "name": "punctuation.definition.field.end.nav-cal" }
+      }
+    },
+    "recordFieldAccess": {
+      "name": "meta.field-access.nav-cal",
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(\\s*\\.\\s*)([A-Za-z_][A-Za-z0-9_]*)\\b(?!\\s*\\()",
+      "captures": {
+        "1": { "name": "variable.other.record.nav-cal variable.other.object.nav-cal variable.other.nav-cal entity.name.variable.nav-cal" },
+        "2": { "name": "punctuation.accessor.dot.nav-cal" },
+        "3": { "name": "variable.other.property.field.name.nav-cal variable.other.property.nav-cal support.variable.property.nav-cal" }
+      }
+    },
+    "memberFunctionCall": {
+      "name": "meta.method-call.nav-cal",
+      "begin": "\\b([A-Za-z_][A-Za-z0-9_]*)(\\s*\\.\\s*)([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "beginCaptures": {
+        "1": { "name": "variable.other.object.nav-cal variable.other.nav-cal entity.name.variable.nav-cal" },
+        "2": { "name": "punctuation.accessor.dot.nav-cal" },
+        "3": { "name": "entity.name.function.member.nav-cal" },
+        "4": { "name": "punctuation.section.arguments.begin.nav-cal" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.arguments.end.nav-cal" }
+      },
+      "patterns": [
+        { "include": "#strings" },
+        { "include": "#recordKnownMethodCall" },
+        { "include": "#recordQuotedFieldAccess" },
+        { "include": "#memberFunctionCall" },
+        { "include": "#recordFieldAccess" },
+        { "include": "#optionMember" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#constants" },
+        { "include": "#variableUsage" },
+        { "include": "#numbers" },
+        { "name": "punctuation.separator.parameter.nav-cal", "match": "," }
+      ]
+    },
+    "optionMember": {
+      "name": "meta.option-member.nav-cal",
+      "match": "(::)\\s*(?:(\")([^\"]+)(\")|([A-Za-z_][A-Za-z0-9_]*))",
+      "captures": {
+        "1": { "name": "punctuation.accessor.double-colon.nav-cal punctuation.separator.namespace.nav-cal" },
+        "2": { "name": "punctuation.definition.option.begin.nav-cal" },
+        "3": { "name": "constant.other.option.nav-cal variable.other.enummember.nav-cal" },
+        "4": { "name": "punctuation.definition.option.end.nav-cal" },
+        "5": { "name": "constant.other.option.nav-cal variable.other.enummember.nav-cal" }
+      }
+    },
+    "functionCall": {
+      "name": "meta.function-call.nav-cal",
+      "begin": "(?<![.@A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "beginCaptures": {
+        "1": { "name": "entity.name.function.call.nav-cal" },
+        "2": { "name": "punctuation.section.arguments.begin.nav-cal" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.arguments.end.nav-cal" }
+      },
+      "patterns": [
+        { "include": "#strings" },
+        { "include": "#recordKnownMethodCall" },
+        { "include": "#recordQuotedFieldAccess" },
+        { "include": "#memberFunctionCall" },
+        { "include": "#recordFieldAccess" },
+        { "include": "#optionMember" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#constants" },
+        { "include": "#variableUsage" },
+        { "include": "#numbers" },
+        { "name": "punctuation.separator.parameter.nav-cal", "match": "," }
+      ]
+    },
+    "systemCall": {
+      "name": "support.function.nav-cal",
+      "match": "\\b(RESET|INIT|GET|FIND|FINDFIRST|FINDLAST|FINDSET|NEXT|INSERT|MODIFY|DELETE|DELETEALL|VALIDATE|TESTFIELD|SETRANGE|SETFILTER|SETCURRENTKEY|SETVIEW|GETVIEW|CALCFIELDS|CALCSUMS|COPY|COPYFILTERS|TRANSFERFIELDS|LOCKTABLE|COMMIT|ERROR|MESSAGE|CONFIRM|STRSUBSTNO|FORMAT|EVALUATE|COPYSTR|DELSTR|INCSTR|ROUND|EXIT|CLEAR|CLEARALL|SELECTLATESTVERSION|RUN|RUNMODAL)\\b"
+    },
+    "flowKeywords": {
+      "name": "keyword.control.nav-cal",
+      "match": "\\b(IF|THEN|ELSE|CASE|OF|BEGIN|END|REPEAT|UNTIL|FOR|TO|DOWNTO|DO|WHILE|WITH|EXIT|LOCAL|VAR|ASSERTERROR)\\b"
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.logical.nav-cal",
+          "match": "\\b(AND|OR|NOT|XOR|IN|DIV|MOD)\\b"
+        },
+        {
+          "name": "keyword.operator.assignment.nav-cal",
+          "match": ":="
+        },
+        {
+          "name": "keyword.operator.comparison.nav-cal",
+          "match": "<>|<=|>=|=|<|>"
+        },
+        {
+          "name": "keyword.operator.arithmetic.nav-cal",
+          "match": "[+*/-]"
+        }
+      ]
+    },
+    "types": {
+      "name": "support.type.nav-cal",
+      "match": "\\b(Action|Automation|BigInteger|BigText|Binary|BLOB|Boolean|Char|Code|Codeunit|Date|DateFormula|DateTime|Decimal|Dialog|Duration|FieldRef|File|GUID|InStream|Integer|KeyRef|OCX|Option|OutStream|Page|Record|RecordID|RecordRef|Report|TableFilter|Text|Time|Variant|XMLport|Query)\\b"
+    },
+    "constants": {
+      "name": "constant.language.nav-cal",
+      "match": "\\b(TRUE|FALSE|DATABASE|COMPANYNAME|TODAY|WORKDATE|USERID)\\b"
+    },
+    "variableUsage": {
+      "name": "variable.other.nav-cal entity.name.variable.nav-cal",
+      "match": "(?<![.@])\\b(?!IF\\b|THEN\\b|ELSE\\b|CASE\\b|OF\\b|BEGIN\\b|END\\b|REPEAT\\b|UNTIL\\b|FOR\\b|TO\\b|DOWNTO\\b|DO\\b|WHILE\\b|WITH\\b|EXIT\\b|LOCAL\\b|VAR\\b|PROCEDURE\\b|TRUE\\b|FALSE\\b|DATABASE\\b|COMPANYNAME\\b|TODAY\\b|WORKDATE\\b|USERID\\b|Record\\b|Codeunit\\b|Page\\b|Report\\b|Query\\b|XMLport\\b|Integer\\b|Decimal\\b|Boolean\\b|Code\\b|Text\\b|Date\\b|Time\\b|DateTime\\b|Option\\b|BigText\\b|BLOB\\b|RecordRef\\b|FieldRef\\b)([A-Za-z_][A-Za-z0-9_]*)\\b(?!\\s*(?:\\(|@|:)|\\s*\\.)"
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.decimal.nav-cal",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.nav-cal",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.statement.nav-cal",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.parameter.nav-cal",
+          "match": ","
+        },
+        {
+          "name": "punctuation.section.group.nav-cal",
+          "match": "[()]"
+        },
+        {
+          "name": "punctuation.accessor.dot.nav-cal",
+          "match": "\\."
+        }
+      ]
+    }
+  }
+}

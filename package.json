@@ -1,0 +1,509 @@
+{
+  "name": "dynamics-nav-dev-assistant",
+  "displayName": "Dynamics NAV Dev Assistant",
+  "description": "Legacy NAV C/AL .txt object support with workspace analysis, navigation, and AI powered code explanations.",
+  "version": "1.0.0",
+  "publisher": "MarkWilliamson",
+  "license": "SEE LICENSE IN LICENSE",
+  "icon": "media/marketplaceicon.png",
+  "galleryBanner": {
+    "color": "#123B73",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/markawilliamson/NavDevAssistant.git"
+  },
+  "homepage": "https://github.com/markawilliamson/NavDevAssistant",
+  "bugs": {
+    "url": "https://github.com/markawilliamson/NavDevAssistant/issues"
+  },
+  "keywords": [
+    "NAV",
+    "C/AL",
+    "Dynamics NAV",
+    "NAV Developer Tool"
+  ],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:navDevAssistant.explain",
+    "onCommand:navDevAssistant.explainSelection",
+    "onCommand:navDevAssistant.explainFile",
+    "onCommand:navDevAssistant.askAboutSelection",
+    "onCommand:navDevAssistant.activateWorkspace",
+    "onCommand:navDevAssistant.initializeWorkspace",
+    "onCommand:navDevAssistant.focusObjectNavigator",
+    "onCommand:navDevAssistant.refreshObjectNavigator",
+    "onCommand:navDevAssistant.filterObjectNavigatorByVersion",
+    "onCommand:navDevAssistant.clearObjectNavigatorVersionFilter",
+    "onCommand:navDevAssistant.openObject",
+    "onCommand:navDevAssistant.rebuildIndex",
+    "onCommand:navDevAssistant.clearIndexCache",
+    "onCommand:navDevAssistant.whereIs",
+    "onCommand:navDevAssistant.findInCurrentDocument",
+    "onCommand:navDevAssistant.runParserDiagnostics",
+    "onCommand:navDevAssistant.runParserUpgradeDiagnostics",
+    "onCommand:navDevAssistant.refreshDependencies",
+    "onCommand:navDevAssistant.filterDependencies",
+    "onCommand:navDevAssistant.clearDependencyFilter",
+    "onCommand:navDevAssistant.structuredSearch",
+    "onView:navDevAssistant.objectNavigator",
+    "onView:navDevAssistant.dependencies",
+    "workspaceContains:.navdevassistant-example.json",
+    "onLanguage:nav-obj"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "navDevAssistant.explain",
+        "title": "Explain NAV"
+      },
+      {
+        "command": "navDevAssistant.explainSelection",
+        "title": "/explain NAV: Explain Selected Code"
+      },
+      {
+        "command": "navDevAssistant.explainFile",
+        "title": "/explain NAV: Explain Current File"
+      },
+      {
+        "command": "navDevAssistant.askAboutSelection",
+        "title": "Explain NAV: Ask About This Code"
+      },
+      {
+        "command": "navDevAssistant.activateWorkspace",
+        "title": "NAV: Activate Extension in Workspace"
+      },
+      {
+        "command": "navDevAssistant.initializeWorkspace",
+        "title": "NAV: Initialize Workspace Config"
+      },
+      {
+        "command": "navDevAssistant.focusObjectNavigator",
+        "title": "NAV: Focus Object Navigator"
+      },
+      {
+        "command": "navDevAssistant.refreshObjectNavigator",
+        "title": "NAV: Refresh Object Navigator",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "navDevAssistant.filterObjectNavigatorByVersion",
+        "title": "NAV: Filter Version Tag",
+        "icon": "$(search)"
+      },
+      {
+        "command": "navDevAssistant.clearObjectNavigatorVersionFilter",
+        "title": "NAV: Clear Version Filter",
+        "icon": "$(close)"
+      },
+      {
+        "command": "navDevAssistant.openObject",
+        "title": "NAV: Open Object"
+      },
+      {
+        "command": "navDevAssistant.rebuildIndex",
+        "title": "NAV: Rebuild Symbol Index",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "navDevAssistant.clearIndexCache",
+        "title": "NAV: Clear Symbol Index Cache"
+      },
+      {
+        "command": "navDevAssistant.whereIs",
+        "title": "NAV: Where Is"
+      },
+      {
+        "command": "navDevAssistant.findInCurrentDocument",
+        "title": "NAV: Find In Current Document"
+      },
+      {
+        "command": "navDevAssistant.runParserDiagnostics",
+        "title": "NAV: Run Workspace Diagnostics"
+      },
+      {
+        "command": "navDevAssistant.runParserUpgradeDiagnostics",
+        "title": "NAV: Run Upgrade Diagnostics"
+      },
+      {
+        "command": "navDevAssistant.refreshDependencies",
+        "title": "NAV: Refresh Dependencies",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "navDevAssistant.filterDependencies",
+        "title": "NAV: Filter Dependencies",
+        "icon": "$(search)"
+      },
+      {
+        "command": "navDevAssistant.clearDependencyFilter",
+        "title": "NAV: Clear Dependency Filter",
+        "icon": "$(close)"
+      },
+      {
+        "command": "navDevAssistant.structuredSearch",
+        "title": "NAV: Structured Search"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "navDevAssistant",
+          "title": "NAV",
+          "icon": "media/nav.svg"
+        }
+      ]
+    },
+    "views": {
+      "navDevAssistant": [
+        {
+          "id": "navDevAssistant.objectNavigator",
+          "name": "Object Navigator",
+          "when": "navDevAssistant.isNavRepo"
+        },
+        {
+          "id": "navDevAssistant.dependencies",
+          "name": "Dependencies",
+          "when": "navDevAssistant.isNavRepo"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "navDevAssistant.editorContext",
+        "label": "NAV"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "navDevAssistant.filterObjectNavigatorByVersion",
+          "when": "view == navDevAssistant.objectNavigator",
+          "group": "navigation@1"
+        },
+        {
+          "command": "navDevAssistant.clearObjectNavigatorVersionFilter",
+          "when": "view == navDevAssistant.objectNavigator && navDevAssistant.hasObjectNavigatorVersionFilter",
+          "group": "navigation@2"
+        },
+        {
+          "command": "navDevAssistant.refreshObjectNavigator",
+          "when": "view == navDevAssistant.objectNavigator",
+          "group": "navigation@3"
+        },
+        {
+          "command": "navDevAssistant.rebuildIndex",
+          "when": "view == navDevAssistant.objectNavigator",
+          "group": "2_index"
+        },
+        {
+          "command": "navDevAssistant.refreshDependencies",
+          "when": "view == navDevAssistant.dependencies",
+          "group": "navigation@1"
+        },
+        {
+          "command": "navDevAssistant.filterDependencies",
+          "when": "view == navDevAssistant.dependencies",
+          "group": "navigation@2"
+        },
+        {
+          "command": "navDevAssistant.clearDependencyFilter",
+          "when": "view == navDevAssistant.dependencies",
+          "group": "navigation@3"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "navDevAssistant.editorContext",
+          "when": "editorTextFocus",
+          "group": "navigation@0"
+        }
+      ],
+      "navDevAssistant.editorContext": [
+        {
+          "command": "navDevAssistant.explain",
+          "when": "editorTextFocus",
+          "group": "navigation@0"
+        },
+        {
+          "command": "navDevAssistant.askAboutSelection",
+          "when": "editorTextFocus && editorHasSelection",
+          "group": "navigation@1"
+        },
+        {
+          "command": "navDevAssistant.findInCurrentDocument",
+          "when": "editorTextFocus",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configurationDefaults": {
+      "[nav-obj]": {
+        "files.encoding": "utf8",
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+      }
+    },
+    "configuration": {
+      "title": "NAV Dev Assistant",
+      "properties": {
+        "navDevAssistant.provider": {
+          "type": "string",
+          "default": "openai",
+          "enum": [
+            "openai",
+            "local"
+          ],
+          "description": "LLM provider used by the /explain commands."
+        },
+        "navDevAssistant.openai.apiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "OpenAI API key. Prefer storing this in user settings instead of workspace settings."
+        },
+        "navDevAssistant.openai.model": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "OpenAI model for explanations."
+        },
+        "navDevAssistant.openai.endpoint": {
+          "type": "string",
+          "default": "https://api.openai.com/v1/chat/completions",
+          "description": "OpenAI-compatible chat completions endpoint."
+        },
+        "navDevAssistant.local.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/v1/chat/completions",
+          "description": "Local OpenAI-compatible chat completions endpoint. Ollama's /api/chat endpoint is also supported."
+        },
+        "navDevAssistant.local.model": {
+          "type": "string",
+          "default": "llama3.1",
+          "description": "Local LLM model name."
+        },
+        "navDevAssistant.local.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Optional bearer token for local or private OpenAI-compatible servers."
+        },
+        "navDevAssistant.maxInputCharacters": {
+          "type": "number",
+          "default": 24000,
+          "minimum": 1000,
+          "description": "Maximum characters sent to the LLM for a selected block or current file."
+        },
+        "navDevAssistant.maxOutputTokens": {
+          "type": "number",
+          "default": 700,
+          "minimum": 100,
+          "maximum": 4096,
+          "description": "Maximum tokens the model may generate for an explanation."
+        },
+        "navDevAssistant.maxIndexFileBytes": {
+          "type": "number",
+          "default": 2097152,
+          "minimum": 65536,
+          "description": "Maximum size of a NAV source file to index. Larger files are skipped."
+        },
+        "navDevAssistant.source.include": {
+          "type": "array",
+          "default": [
+            "src/**/*.txt"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "NAV .txt source globs to index inside a configured NAV workspace. These settings override include globs in .navdevassistant.json when explicitly set."
+        },
+        "navDevAssistant.source.exclude": {
+          "type": "array",
+          "default": [
+            "**/{node_modules,.git,out,dist,build,bin,obj,.vscode-test}/**"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Globs to exclude from NAV source indexing and workspace analysis."
+        },
+        "navDevAssistant.indexConcurrency": {
+          "type": "number",
+          "default": 8,
+          "minimum": 1,
+          "maximum": 32,
+          "description": "Number of NAV source files indexed concurrently during a rebuild."
+        },
+        "navDevAssistant.persistentIndex.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Persist the NAV symbol index in workspace cache files so reloads do not require a full rebuild."
+        },
+        "navDevAssistant.parser.semanticTokens.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Overlay workspace-analysis semantic token colors on top of the TextMate grammar. Disabled by default so standard NAV syntax highlighting remains stable."
+        },
+        "navDevAssistant.parser.diagnostics.includeInfo": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show informational workspace-analysis diagnostics in the Problems panel."
+        },
+        "navDevAssistant.parser.diagnostics.profile": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "upgrade"
+          ],
+          "description": "Workspace diagnostics profile used for automatic diagnostics."
+        },
+        "navDevAssistant.parser.diagnostics.runOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run workspace diagnostics automatically when a NAV .txt object file is saved."
+        },
+        "navDevAssistant.parser.diagnostics.scope": {
+          "type": "string",
+          "default": "file",
+          "enum": [
+            "file",
+            "workspace"
+          ],
+          "description": "Scope for automatic workspace diagnostics. File updates only the saved object; workspace rescans the open workspace."
+        },
+        "navDevAssistant.parser.diagnostics.maxInformation": {
+          "type": "number",
+          "default": 250,
+          "minimum": 0,
+          "description": "Maximum informational workspace-analysis diagnostics to show in the Problems panel when includeInfo is enabled. Additional informational diagnostics are suppressed."
+        },
+        "navDevAssistant.objectProperties.updateDateTimeOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Update existing Date and Time values in a NAV object's OBJECT-PROPERTIES block before saving."
+        },
+        "navDevAssistant.temperature": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature for explanations."
+        },
+        "navDevAssistant.configFileName": {
+          "type": "string",
+          "default": ".navdevassistant.json",
+          "description": "Workspace marker/config file required before NAV symbol indexing runs."
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "nav-obj",
+        "aliases": [
+          "Dynamics NAV Object",
+          "NAV Object",
+          "C/AL Object"
+        ],
+        "filenamePatterns": [
+          "T[0-9]*.txt",
+          "Tab[0-9]*.txt",
+          "Table*[0-9]*.txt",
+          "F[0-9]*.txt",
+          "For[0-9]*.txt",
+          "Form*[0-9]*.txt",
+          "R[0-9]*.txt",
+          "Rep[0-9]*.txt",
+          "Report*[0-9]*.txt",
+          "D[0-9]*.txt",
+          "Dat[0-9]*.txt",
+          "DataPort*[0-9]*.txt",
+          "C[0-9]*.txt",
+          "Cod[0-9]*.txt",
+          "Codeunit*[0-9]*.txt",
+          "X[0-9]*.txt",
+          "XML[0-9]*.txt",
+          "XMLPort*[0-9]*.txt",
+          "M[0-9]*.txt",
+          "Men[0-9]*.txt",
+          "MenuSuite*[0-9]*.txt",
+          "P[0-9]*.txt",
+          "Pag[0-9]*.txt",
+          "Page*[0-9]*.txt",
+          "Q[0-9]*.txt",
+          "Que[0-9]*.txt",
+          "Query*[0-9]*.txt",
+          "*.Table.txt",
+          "*.Form.txt",
+          "*.Report.txt",
+          "*.Dataport.txt",
+          "*.Codeunit.txt",
+          "*.XMLPort.txt",
+          "*.MenuSuite.txt",
+          "*.Page.txt",
+          "*.Query.txt"
+        ],
+        "firstLine": "^\\uFEFF?\\s*OBJECT\\s+(Table|Form|Codeunit|Dataport|Report|XMLport|MenuSuite|Query|Page)\\s+",
+        "configuration": "./nav-obj.language-configuration.json"
+      },
+      {
+        "id": "cal",
+        "aliases": [
+          "C/AL",
+          "C/AL Code"
+        ],
+        "configuration": "./c-al.language-configuration.json"
+      },
+      {
+        "id": "nav-rdl",
+        "aliases": [
+          "NAV RDL",
+          "C/AL RDL"
+        ],
+        "extensions": [
+          ".rdl",
+          ".ardl"
+        ],
+        "configuration": "./rdl.language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "nav-obj",
+        "scopeName": "source.nav-object",
+        "path": "./syntaxes/nav-obj.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.nav-cal": "cal",
+          "meta.embedded.block.xml": "nav-rdl"
+        }
+      },
+      {
+        "language": "cal",
+        "scopeName": "source.nav-cal",
+        "path": "./syntaxes/c-al.tmLanguage.json"
+      },
+        {
+          "language": "nav-rdl",
+          "scopeName": "source.nav-rdl",
+          "path": "./syntaxes/rdl.tmLanguage.json",
+          "injectTo": [
+            "source.nav-object"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --check extension.js && node --check navIndex.js && node --check navObjectNavigator.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.2.1"
+  }
+}

@@ -1,0 +1,408 @@
+{
+  "name": "Dynamics NAV Object Text",
+  "scopeName": "source.nav-object",
+  "foldingStartMarker": "^\\s*(OBJECT|OBJECT-PROPERTIES|PROPERTIES|FIELDS|KEYS|FIELDGROUPS|CODE|CONTROLS|DATASET|REQUESTPAGE|SECTIONS|MENUNODES|ELEMENTS)\\b|\\{\\s*$",
+  "foldingStopMarker": "^\\s*}\\s*$|\\bEND\\b",
+  "patterns": [
+    { "include": "#objectHeader" },
+    { "include": "#sectionBrace" },
+    { "include": "#objectPropertySection" },
+    { "include": "#fieldsSection" },
+    { "include": "#keysSection" },
+    { "include": "#codeSection" },
+    { "include": "#genericRowSection" },
+    { "include": "#rdlSection" },
+    { "include": "#sectionHeader" },
+    { "include": "#propertyRules" },
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#quotedIdentifier" },
+    { "include": "#numbers" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "objectHeader": {
+      "name": "meta.object.header.nav-object",
+      "match": "^(OBJECT)\\s+(Table|Form|Codeunit|Dataport|Report|XMLport|MenuSuite|Query|Page)\\s+(\\d+)\\s+(.+)$",
+      "captures": {
+        "1": { "name": "keyword.declaration.object.nav-object" },
+        "2": { "name": "entity.name.type.object-kind.nav-object" },
+        "3": { "name": "constant.numeric.object-id.nav-object" },
+        "4": { "name": "entity.name.type.object-name.nav-object" }
+      }
+    },
+    "sectionHeader": {
+      "name": "keyword.control.section.nav-object",
+      "match": "^\\s{2}(OBJECT-PROPERTIES|PROPERTIES|FIELDS|KEYS|FIELDGROUPS|CODE|CONTROLS|DATASET|REQUESTPAGE|SECTIONS|MENUNODES|ELEMENTS|LABELS|RDLDATA|EVENTS)\\b"
+    },
+    "sectionBrace": {
+      "name": "punctuation.section.brace.nav-object",
+      "match": "^\\s*[{}]\\s*$"
+    },
+    "objectPropertySection": {
+      "name": "meta.properties.block.nav-object",
+      "begin": "^\\s{2,6}(OBJECT-PROPERTIES|PROPERTIES)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.section.nav-object" }
+      },
+      "end": "^\\s{2,6}}\\s*$",
+      "patterns": [
+        { "include": "#sectionBrace" },
+        { "include": "#propertyRules" },
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#numbers" },
+        { "include": "#punctuation" }
+      ]
+    },
+    "fieldsSection": {
+      "name": "meta.fields.block.nav-object",
+      "begin": "^\\s{2}(FIELDS)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.section.nav-object" }
+      },
+      "end": "^\\s{2}}\\s*$",
+      "patterns": [
+        { "include": "#sectionBrace" },
+        { "include": "#fieldRowWithProperties" },
+        { "include": "#fieldRowSimple" },
+        { "include": "#propertyRules" },
+        { "include": "#comments" }
+      ]
+    },
+    "fieldRowWithProperties": {
+      "name": "meta.table-field.nav-object",
+      "applyEndPatternLast": 1,
+      "begin": "^\\s*(\\{)\\s*(\\d+)\\s*;\\s*([^;]*)\\s*;\\s*([^;]+?)\\s*;\\s*([A-Za-z][A-Za-z0-9]*)\\s*;",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.field-row.begin.nav-object" },
+        "2": { "name": "constant.numeric.field-id.nav-object" },
+        "3": { "name": "constant.other.field-class.nav-object" },
+        "4": { "name": "variable.other.property.field-name.nav-object" },
+        "5": { "name": "support.type.field-type.nav-object" }
+      },
+      "end": "(})\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.field-row.end.nav-object" }
+      },
+      "patterns": [
+        { "include": "#propertyRules" },
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#numbers" },
+        { "include": "#punctuation" }
+      ]
+    },
+    "fieldRowSimple": {
+      "name": "meta.table-field.nav-object",
+      "match": "^\\s*(\\{)\\s*(\\d+)\\s*;\\s*([^;]*)\\s*;\\s*([^;]+?)\\s*;\\s*([A-Za-z][A-Za-z0-9]*)\\s*(})\\s*$",
+      "captures": {
+        "1": { "name": "punctuation.definition.field-row.begin.nav-object" },
+        "2": { "name": "constant.numeric.field-id.nav-object" },
+        "3": { "name": "constant.other.field-class.nav-object" },
+        "4": { "name": "variable.other.property.field-name.nav-object" },
+        "5": { "name": "support.type.field-type.nav-object" },
+        "6": { "name": "punctuation.definition.field-row.end.nav-object" }
+      }
+    },
+    "keysSection": {
+      "name": "meta.keys.block.nav-object",
+      "begin": "^\\s{2}(KEYS)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.section.nav-object" }
+      },
+      "end": "^\\s{2}}\\s*$",
+      "patterns": [
+        { "include": "#sectionBrace" },
+        { "include": "#keyRowWithProperties" },
+        { "include": "#keyRowSimple" },
+        { "include": "#propertyRules" },
+        { "include": "#comments" }
+      ]
+    },
+    "keyRowWithProperties": {
+      "name": "meta.key-definition.nav-object",
+      "applyEndPatternLast": 1,
+      "begin": "^\\s*(\\{)\\s*([^;{}]*)\\s*;\\s*([^;{}]+)\\s*;",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.key-row.begin.nav-object" },
+        "2": { "name": "constant.other.key-flags.nav-object" },
+        "3": { "name": "variable.other.property.key-fields.nav-object" }
+      },
+      "end": "(})\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.key-row.end.nav-object" }
+      },
+      "patterns": [
+        { "include": "#propertyRules" },
+        { "include": "#comments" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#numbers" },
+        { "include": "#punctuation" }
+      ]
+    },
+    "keyRowSimple": {
+      "name": "meta.key-definition.nav-object",
+      "match": "^\\s*(\\{)\\s*([^;{}]*)\\s*;\\s*([^;{}]+)\\s*(})\\s*$",
+      "captures": {
+        "1": { "name": "punctuation.definition.key-row.begin.nav-object" },
+        "2": { "name": "constant.other.key-flags.nav-object" },
+        "3": { "name": "variable.other.property.key-fields.nav-object" },
+        "4": { "name": "punctuation.definition.key-row.end.nav-object" }
+      }
+    },
+    "genericRowSection": {
+      "name": "meta.row-section.block.nav-object",
+      "begin": "^\\s{2}(FIELDGROUPS|CONTROLS|DATASET|REQUESTPAGE|SECTIONS|MENUNODES|ELEMENTS|LABELS)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.section.nav-object" }
+      },
+      "end": "^\\s{2}}\\s*$",
+      "patterns": [
+        { "include": "#sectionBrace" },
+        { "include": "#genericRowWithProperties" },
+        { "include": "#genericRowSimple" },
+        { "include": "#propertyRules" },
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#numbers" },
+        { "include": "#punctuation" }
+      ]
+    },
+    "genericRowWithProperties": {
+      "name": "meta.export-row.nav-object",
+      "applyEndPatternLast": 1,
+      "begin": "^\\s*(\\{)\\s*([^;{}]*)\\s*;\\s*([^;{}]*)\\s*;\\s*([^;{}]*)\\s*;?",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.export-row.begin.nav-object" },
+        "2": { "name": "constant.numeric.row-id.nav-object" },
+        "3": { "name": "constant.other.row-indent.nav-object" },
+        "4": { "name": "entity.name.type.row-kind.nav-object" }
+      },
+      "end": "(})\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.export-row.end.nav-object" }
+      },
+      "patterns": [
+        { "include": "#propertyRules" },
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#numbers" },
+        { "include": "#punctuation" }
+      ]
+    },
+    "genericRowSimple": {
+      "name": "meta.export-row.nav-object",
+      "match": "^\\s*(\\{)(.*)(})\\s*$",
+      "captures": {
+        "1": { "name": "punctuation.definition.export-row.begin.nav-object" },
+        "2": { "name": "string.unquoted.row-content.nav-object" },
+        "3": { "name": "punctuation.definition.export-row.end.nav-object" }
+      }
+    },
+    "rdlSection": {
+      "name": "meta.rdl.block.nav-object",
+      "begin": "^\\s{2}(RDLDATA)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.section.nav-object" }
+      },
+      "end": "^\\s{2}}\\s*$",
+      "patterns": [
+        {
+          "contentName": "meta.embedded.block.xml",
+          "begin": "^\\s*\\{\\s*$",
+          "end": "^\\s*END_OF_RDLDATA\\s*$",
+          "patterns": [
+            { "include": "source.nav-rdl" }
+          ]
+        },
+        { "include": "#sectionBrace" }
+      ]
+    },
+    "codeSection": {
+      "name": "meta.code.block.nav-object",
+      "begin": "^\\s{2}(CODE)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.section.nav-object" }
+      },
+      "end": "^\\s{2}}\\s*$",
+      "patterns": [
+        { "include": "#sectionBrace" },
+        {
+          "contentName": "meta.embedded.block.nav-cal",
+          "begin": "(?=^\\s*(?:LOCAL\\s+)?PROCEDURE\\b|^\\s*VAR\\b|^\\s*BEGIN\\b|^\\s*[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*(?:VAR\\b|BEGIN\\b))",
+          "end": "(?=^\\s{2}}\\s*$)",
+          "patterns": [
+            { "include": "source.nav-cal" }
+          ]
+        }
+      ]
+    },
+    "propertyRules": {
+      "patterns": [
+        { "include": "#triggerProperty" },
+        { "include": "#mlStringProperty" },
+        { "include": "#tableRelationProperty" },
+        { "include": "#viewProperty" },
+        { "include": "#permissionsProperty" },
+        { "include": "#simpleProperty" }
+      ]
+    },
+    "triggerProperty": {
+      "name": "meta.property.trigger.nav-object",
+      "contentName": "meta.embedded.block.nav-cal",
+      "applyEndPatternLast": 1,
+      "begin": "((?:^\\s*)|(?:;\\s*)|(?:\\s*))((?:[A-Za-z]+::)?On[A-Za-z]{3,})\\s*(=)\\s*(?=VAR\\b|BEGIN\\b)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.separator.property.nav-object" },
+        "2": { "name": "variable.other.property.nav-object support.type.trigger.nav-object" },
+        "3": { "name": "keyword.operator.assignment.nav-object" }
+      },
+      "end": "(?=^\\s*[A-Za-z][A-Za-z0-9 ]*\\s*=|^\\s*}\\s*$|^\\s*\\{\\s*\\d+\\s*;|^\\s{2,6}(?:OBJECT-PROPERTIES|PROPERTIES|FIELDS|KEYS|FIELDGROUPS|CODE|CONTROLS|DATASET|REQUESTPAGE|SECTIONS|MENUNODES|ELEMENTS|LABELS|RDLDATA)\\b)",
+      "patterns": [
+        { "include": "source.nav-cal" }
+      ]
+    },
+    "mlStringProperty": {
+      "name": "meta.property.mlstring.nav-object",
+      "begin": "((?:^\\s*)|(?:;\\s*)|(?:\\s*))([A-Za-z]+ML)\\s*(=)\\s*(\\[)\\s*([A-Z]{3})\\s*(=)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.separator.property.nav-object" },
+        "2": { "name": "variable.other.property.nav-object" },
+        "3": { "name": "keyword.operator.assignment.nav-object" },
+        "4": { "name": "punctuation.definition.mlstring.begin.nav-object" },
+        "5": { "name": "constant.other.language-code.nav-object" },
+        "6": { "name": "keyword.operator.assignment.nav-object" }
+      },
+      "end": "(\\])\\s*(;|(?=\\s*}))?",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.mlstring.end.nav-object" },
+        "2": { "name": "punctuation.terminator.property.nav-object" }
+      },
+      "patterns": [
+        {
+          "name": "meta.property.mlstring.line.nav-object",
+          "match": "^\\s*([A-Z]{3})\\s*(=)\\s*([^\\]\\n]*?)(;)?\\s*$",
+          "captures": {
+            "1": { "name": "constant.other.language-code.nav-object" },
+            "2": { "name": "keyword.operator.assignment.nav-object" },
+            "3": { "name": "string.unquoted.property-value.nav-object" },
+            "4": { "name": "punctuation.separator.property-value.nav-object" }
+          }
+        },
+        { "include": "#strings" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#numbers" },
+        { "name": "string.unquoted.property-value.nav-object", "match": "[^\\]\\n]+" }
+      ]
+    },
+    "tableRelationProperty": {
+      "name": "meta.property.relation.nav-object",
+      "begin": "((?:^\\s*)|(?:;\\s*)|(?:\\s*))(TableRelation|CalcFormula|DataItemLink|RunPageLink|SubPageLink)\\s*(=)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.separator.property.nav-object" },
+        "2": { "name": "variable.other.property.nav-object" },
+        "3": { "name": "keyword.operator.assignment.nav-object" }
+      },
+      "end": "(;|(?=\\s*}))",
+      "endCaptures": {
+        "1": { "name": "punctuation.terminator.property.nav-object" }
+      },
+      "patterns": [
+        { "name": "keyword.control.filter.nav-object", "match": "\\b(IF|ELSE|WHERE|CONST|FIELD|FILTER|SORTING|ORDER|Sum|Average|Exist|Count|Min|Max)\\b" },
+        { "include": "#strings" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#numbers" },
+        { "name": "punctuation.separator.property-value.nav-object", "match": "[(),.=]" },
+        { "name": "string.unquoted.property-value.nav-object", "match": "[^;})\\n]+" }
+      ]
+    },
+    "viewProperty": {
+      "name": "meta.property.view.nav-object",
+      "begin": "((?:^\\s*)|(?:;\\s*)|(?:\\s*))([A-Za-z]+View|SourceTableView|DataItemTableView)\\s*(=)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.separator.property.nav-object" },
+        "2": { "name": "variable.other.property.nav-object" },
+        "3": { "name": "keyword.operator.assignment.nav-object" }
+      },
+      "end": "(;|(?=\\s*}))",
+      "endCaptures": {
+        "1": { "name": "punctuation.terminator.property.nav-object" }
+      },
+      "patterns": [
+        { "name": "keyword.control.view.nav-object", "match": "\\b(SORTING|ORDER|WHERE|Ascending|Descending|CONST|FIELD|FILTER)\\b" },
+        { "include": "#strings" },
+        { "include": "#quotedIdentifier" },
+        { "include": "#numbers" },
+        { "name": "punctuation.separator.property-value.nav-object", "match": "[(),.=]" },
+        { "name": "string.unquoted.property-value.nav-object", "match": "[^;})\\n]+" }
+      ]
+    },
+    "permissionsProperty": {
+      "name": "meta.property.permissions.nav-object",
+      "begin": "((?:^\\s*)|(?:;\\s*)|(?:\\s*))(Permissions)\\s*(=)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.separator.property.nav-object" },
+        "2": { "name": "variable.other.property.nav-object" },
+        "3": { "name": "keyword.operator.assignment.nav-object" }
+      },
+      "end": "(;|(?=\\s*}))",
+      "endCaptures": {
+        "1": { "name": "punctuation.terminator.property.nav-object" }
+      },
+      "patterns": [
+        { "name": "entity.name.type.object-kind.nav-object", "match": "\\b(TableData|Table|Form|Report|Dataport|Codeunit|XMLport|MenuSuite|Page|Query)\\b" },
+        { "name": "constant.numeric.object-id.nav-object", "match": "\\b\\d+\\b" },
+        { "name": "constant.other.permission.nav-object", "match": "\\b[rimdx]+\\b" },
+        { "name": "punctuation.separator.property-value.nav-object", "match": "[=,]" }
+      ]
+    },
+    "simpleProperty": {
+      "name": "meta.property.assignment.nav-object",
+      "match": "((?:^\\s*)|(?:;\\s*)|(?:\\s*))([A-Za-z][A-Za-z0-9 /-]*)\\s*(=)\\s*([^;}]*)((;)|(?=\\s*}))",
+      "captures": {
+        "1": { "name": "punctuation.separator.property.nav-object" },
+        "2": { "name": "variable.other.property.nav-object" },
+        "3": { "name": "keyword.operator.assignment.nav-object" },
+        "4": { "name": "string.unquoted.property-value.nav-object" },
+        "6": { "name": "punctuation.terminator.property.nav-object" }
+      }
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.nav-object",
+          "begin": "//",
+          "end": "$"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.single.nav-object",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.other.placeholder.nav-object",
+          "match": "%\\d+"
+        }
+      ]
+    },
+    "quotedIdentifier": {
+      "name": "variable.other.property.field.quoted.nav-object",
+      "match": "\"[^\"]+\""
+    },
+    "numbers": {
+      "name": "constant.numeric.nav-object",
+      "match": "\\b\\d+(?:\\.\\d+)?\\b"
+    },
+    "punctuation": {
+      "name": "punctuation.separator.nav-object",
+      "match": "[;,.()]"
+    }
+  }
+}
