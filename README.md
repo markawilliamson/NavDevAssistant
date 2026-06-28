@@ -90,3 +90,7 @@ When you use OpenAI, the selected code or current file is sent to the configured
 - Workspace indexing only runs in folders that contain `.navdevassistant.json`.
 - Large files may be skipped to keep the editor responsive. If navigation or search results look stale, run `NAV: Rebuild Symbol Index`.
 - Standard TextMate syntax highlighting works out of the box. Optional semantic token overlays are available in settings if you want deeper workspace-analysis coloring.
+
+## Build from source
+
+npm run package
