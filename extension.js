@@ -3652,7 +3652,7 @@ async function diagnosticsForDocument(navIndex, uri, analysis, objects) {
   }
 
   const duplicateIdMatches = (objects || []).filter((item) =>
-    item.uri.toString() !== uri.toString()
+    !sameDocumentUri(item.uri, uri)
     && normalizeDependencyKey(item.type) === normalizeDependencyKey(navObject.type)
     && normalizeDependencyKey(item.id) === normalizeDependencyKey(navObject.id));
   if (duplicateIdMatches.length) {
@@ -3664,7 +3664,7 @@ async function diagnosticsForDocument(navIndex, uri, analysis, objects) {
   }
 
   const duplicateNameMatches = (objects || []).filter((item) =>
-    item.uri.toString() !== uri.toString()
+    !sameDocumentUri(item.uri, uri)
     && normalizeDependencyKey(item.type) === normalizeDependencyKey(navObject.type)
     && normalizeDependencyKey(item.name) === normalizeDependencyKey(navObject.name));
   if (duplicateNameMatches.length) {
@@ -3698,6 +3698,27 @@ async function diagnosticsForDocument(navIndex, uri, analysis, objects) {
   }
 
   return diagnostics;
+}
+
+function sameDocumentUri(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+
+  if (left.toString() === right.toString()) {
+    return true;
+  }
+
+  if (!left.fsPath || !right.fsPath) {
+    return false;
+  }
+
+  return normalizeFsPath(left.fsPath) === normalizeFsPath(right.fsPath);
+}
+
+function normalizeFsPath(value) {
+  const normalized = path.normalize(String(value || ""));
+  return process.platform === "linux" ? normalized : normalized.toLowerCase();
 }
 
 function analyzeNavBlockBalance(document) {

@@ -488,21 +488,23 @@
         "scopeName": "source.nav-cal",
         "path": "./syntaxes/c-al.tmLanguage.json"
       },
-        {
-          "language": "nav-rdl",
-          "scopeName": "source.nav-rdl",
-          "path": "./syntaxes/rdl.tmLanguage.json",
-          "injectTo": [
-            "source.nav-object"
+      {
+        "language": "nav-rdl",
+        "scopeName": "source.nav-rdl",
+        "path": "./syntaxes/rdl.tmLanguage.json",
+        "injectTo": [
+          "source.nav-object"
         ]
       }
     ]
   },
   "scripts": {
+    "package": "vsce package",
     "test": "node --check extension.js && node --check navIndex.js && node --check navObjectNavigator.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.9.2",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.2.1"
   }

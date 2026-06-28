@@ -897,7 +897,7 @@ class NavWorkspaceIndex {
     for (const analysis of this.documents.values()) {
       objects.push(...(analysis.objects || []));
     }
-    return sortNavObjects(objects);
+    return sortNavObjects(dedupeNavObjects(objects));
   }
 
   getObjectCount() {
@@ -2327,7 +2327,7 @@ function dedupeNavObjects(objects) {
     const key = [
       String(object.type || "").toLowerCase(),
       String(object.id || "").toLowerCase(),
-      object.uri?.toString() || ""
+      normalizedObjectFsPath(object)
     ].join("|");
     if (!byKey.has(key)) {
       byKey.set(key, object);
@@ -2335,6 +2335,16 @@ function dedupeNavObjects(objects) {
   }
 
   return [...byKey.values()];
+}
+
+function normalizedObjectFsPath(object) {
+  const fsPath = object?.uri?.fsPath;
+  if (fsPath) {
+    const normalized = path.normalize(fsPath);
+    return process.platform === "linux" ? normalized : normalized.toLowerCase();
+  }
+
+  return object?.uri?.toString?.() || "";
 }
 
 function objectTypeRank(type) {
