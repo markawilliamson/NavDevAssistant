@@ -2,7 +2,7 @@
   "name": "dynamics-nav-dev-assistant",
   "displayName": "Dynamics NAV Dev Assistant",
   "description": "Legacy NAV C/AL .txt object support with workspace analysis, navigation, and AI powered code explanations.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "MarkWilliamson",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "media/marketplaceicon.png",

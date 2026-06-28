@@ -1633,14 +1633,13 @@ function findCodeBlockEnd(lines, startLine) {
 
   for (let index = startLine; index < lines.length; index += 1) {
     const line = lines[index];
-    const scrubbed = line.replace(/'([^']|'')*'/g, "''");
-    if (!bodyStarted && /\bBEGIN\b/i.test(scrubbed)) {
+    const tokens = navBlockTokens(line);
+    if (!bodyStarted && tokens.some((token) => token.kind === "begin")) {
       bodyStarted = true;
     }
 
-    depth += countBlockKeyword(line, "begin");
-    depth -= countBlockKeyword(line, "end");
-    if (bodyStarted && depth <= 0 && /\bEND\b/i.test(scrubbed)) {
+    depth += navBlockDepthDelta(tokens);
+    if (bodyStarted && depth <= 0 && tokens.some((token) => token.kind === "end")) {
       return index;
     }
   }
@@ -1674,8 +1673,7 @@ function collectReferencesAndWithScopes(references, withScopes, uri, lines, reco
       }
     }
 
-    blockDepth += countBlockKeyword(line, "begin");
-    blockDepth -= countBlockKeyword(line, "end");
+    blockDepth += navBlockDepthDelta(navBlockTokens(line));
     if (blockDepth < 0) {
       blockDepth = 0;
     }
@@ -1831,10 +1829,68 @@ function isDottedIdentifierPart(line, start, length) {
   return line[start - 1] === "." || line[start + length] === ".";
 }
 
-function countBlockKeyword(line, keyword) {
-  const scrubbed = line.replace(/'([^']|'')*'/g, "''");
-  const pattern = new RegExp(`\\b${keyword}\\b`, "gi");
-  return [...scrubbed.matchAll(pattern)].length;
+function navBlockDepthDelta(tokens) {
+  let delta = 0;
+  for (const token of tokens) {
+    if (token.kind === "begin" || token.kind === "case") {
+      delta += 1;
+    } else if (token.kind === "end") {
+      delta -= 1;
+    }
+  }
+  return delta;
+}
+
+function navBlockTokens(line) {
+  const scrubbed = scrubNavLineForKeywordScan(line);
+  const tokens = [];
+  const pattern = /\b(BEGIN|CASE|END)\b/gi;
+  for (const match of scrubbed.matchAll(pattern)) {
+    tokens.push({
+      kind: match[1].toLowerCase(),
+      character: match.index || 0
+    });
+  }
+  return tokens;
+}
+
+function scrubNavLineForKeywordScan(line) {
+  const text = String(line || "");
+  let result = "";
+  let inString = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (inString) {
+      if (char === "'" && next === "'") {
+        result += "  ";
+        index += 1;
+        continue;
+      }
+      if (char === "'") {
+        inString = false;
+      }
+      result += " ";
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      result += " ".repeat(text.length - index);
+      break;
+    }
+
+    if (char === "'") {
+      inString = true;
+      result += " ";
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
 }
 
 function getLookupKeys(document, position) {

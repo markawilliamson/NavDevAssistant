@@ -1279,6 +1279,7 @@ async function explainActiveEditor(navIndex, mode) {
 
   const input = trimToLimit(target.text, config.maxInputCharacters);
   const callerContext = await getKnownCallers(navIndex, document, input.text);
+  const symbolContext = await buildExplainSymbolContext(navIndex, document, input.text, target.range);
   const localExplanation = mode !== "question" ? explainSimpleNavProcedure(input.text) : undefined;
   if (localExplanation) {
     await showMarkdownAnswer(localExplanation, {
@@ -1299,6 +1300,7 @@ async function explainActiveEditor(navIndex, mode) {
     question: userQuestion,
     code: input.text,
     callerContext: callerContext.prompt,
+    symbolContext,
     glossary: await loadWorkspaceGlossary(document.uri),
     wasTruncated: input.wasTruncated
   });
@@ -1335,20 +1337,20 @@ function getExplainTarget(editor, mode) {
     if (mode !== "question" && isSingleIdentifierSelection(selectedText)) {
       const block = getCurrentNavBlock(document, editor.selection.active.line);
       if (block?.text && blockContainsProcedureName(block.text, selectedText.trim())) {
-        return { text: block.text, source: "selected procedure name expanded to current block" };
+        return { text: block.text, source: "selected procedure name expanded to current block", range: block.range };
       }
     }
-    return { text: selectedText, source: "selection" };
+    return { text: selectedText, source: "selection", range: editor.selection };
   }
 
   if (mode === "auto") {
     const block = getCurrentNavBlock(document, editor.selection.active.line);
     if (block?.text) {
-      return { text: block.text, source: block.source };
+      return { text: block.text, source: block.source, range: block.range };
     }
   }
 
-  return { text: document.getText(), source: "file" };
+  return { text: document.getText(), source: "file", range: new vscode.Range(0, 0, document.lineCount, 0) };
 }
 
 function getCurrentNavBlock(document, activeLine) {
@@ -1367,7 +1369,8 @@ function getCurrentNavBlock(document, activeLine) {
   const block = lines.slice(start, end + 1).join("\n");
   return {
     text: context ? `${context}\n\n${block}` : block,
-    source: context ? "current block with object context" : "current block"
+    source: context ? "current block with object context" : "current block",
+    range: new vscode.Range(start, 0, end, lines[end]?.length || 0)
   };
 }
 
@@ -1534,9 +1537,185 @@ function defaultEndpoint(provider) {
     : "http://localhost:11434/v1/chat/completions";
 }
 
-function buildPrompt({ fileName, languageId, mode, source, question, code, callerContext, glossary, wasTruncated }) {
+async function buildExplainSymbolContext(navIndex, document, code, range) {
+  const empty = {
+    entries: [],
+    labelsBySymbol: new Map(),
+    promptBlock: ""
+  };
+
+  try {
+    const analysis = await navIndex.getAnalysisForDocument(document, { silent: true });
+    if (!analysis) {
+      return empty;
+    }
+
+    const usedSymbols = collectExplainSymbolNames(code);
+    const candidates = collectExplainVariableCandidates(analysis, range);
+    const entriesBySymbol = new Map();
+
+    for (const candidate of candidates) {
+      const symbol = cleanupNavName(candidate.name);
+      const symbolKey = explainSymbolKey(symbol);
+      if (!symbolKey || !usedSymbols.has(symbolKey)) {
+        continue;
+      }
+
+      const objectType = variableSubtypeObjectType(candidate.dataType);
+      const subtype = cleanNavSubtype(candidate.subtype);
+      if (!objectType || !subtype) {
+        continue;
+      }
+
+      const resolvedObject = await navIndex.findObject(objectType, subtype);
+      const objectId = resolvedObject?.id ?? (/^\d+$/.test(subtype) ? subtype : undefined);
+      const objectName = resolvedObject?.name ?? (/^\d+$/.test(subtype) ? undefined : subtype);
+      const resolvedType = resolvedObject?.type || objectType;
+      const objectLabel = explainObjectLabel(resolvedType, objectId, objectName);
+      if (!objectLabel) {
+        continue;
+      }
+
+      const entry = {
+        symbol,
+        objectLabel,
+        objectType: resolvedType,
+        objectId,
+        objectName,
+        dataType: candidate.dataType,
+        subtype,
+        temporary: Boolean(candidate.temporary),
+        scope: candidate.scope || ""
+      };
+
+      const existing = entriesBySymbol.get(symbolKey);
+      if (!existing || explainSymbolEntryScore(entry) > explainSymbolEntryScore(existing)) {
+        entriesBySymbol.set(symbolKey, entry);
+      }
+    }
+
+    const entries = [...entriesBySymbol.values()]
+      .sort((a, b) => a.symbol.localeCompare(b.symbol, undefined, { sensitivity: "base" }))
+      .slice(0, 30);
+    if (!entries.length) {
+      return empty;
+    }
+
+    const labelsBySymbol = new Map(entries.map((entry) => [explainSymbolKey(entry.symbol), entry.objectLabel]));
+    const promptBlock = [
+      "",
+      "",
+      "Symbol lookup from workspace index. Treat this as stronger evidence than variable names. When a listed symbol is dereferenced with .FIELD or .METHOD, describe it as Object Name (ID), not only the variable name. Do not infer business behavior from object names beyond identifying the object:",
+      ...entries.map((entry) => `- ${entry.symbol} -> ${entry.objectLabel} [${entry.objectType}${entry.temporary ? " temporary" : ""}; ${entry.dataType}${entry.subtype ? ` ${entry.subtype}` : ""}${entry.scope ? `; ${entry.scope}` : ""}]`)
+    ].join("\n");
+
+    return {
+      entries,
+      labelsBySymbol,
+      promptBlock
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function collectExplainVariableCandidates(analysis, range) {
+  const candidates = [];
+  const activeBlocks = (analysis.codeBlocks || []).filter((block) => explainRangeIntersects(range, block.range));
+  const blocks = activeBlocks.length ? activeBlocks : (analysis.codeBlocks || []);
+
+  for (const variable of analysis.variables || []) {
+    candidates.push(variable);
+  }
+
+  for (const block of blocks) {
+    for (const variable of block.variables || []) {
+      candidates.push(variable);
+    }
+  }
+
+  if (analysis.recordVariables instanceof Map) {
+    for (const [symbol, tableName] of analysis.recordVariables.entries()) {
+      candidates.push({
+        name: symbol,
+        dataType: "Record",
+        subtype: tableName,
+        temporary: false,
+        scope: "implicit"
+      });
+    }
+  }
+
+  return candidates;
+}
+
+function explainRangeIntersects(targetRange, blockRange) {
+  if (!targetRange || !blockRange) {
+    return false;
+  }
+
+  const targetStart = Number(targetRange.start?.line || 0);
+  const targetEnd = Number(targetRange.end?.line || targetStart);
+  const blockStart = Number(blockRange.start?.line || 0);
+  const blockEnd = Number(blockRange.end?.line || blockStart);
+  return targetStart <= blockEnd && targetEnd >= blockStart;
+}
+
+function collectExplainSymbolNames(code) {
+  const names = new Set();
+  const text = stripNavComments(stripNavObjectContext(code));
+
+  for (const match of text.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+    names.add(explainSymbolKey(match[1]));
+  }
+
+  for (const match of text.matchAll(/"([^"\r\n]+)"\s*\./g)) {
+    names.add(explainSymbolKey(match[1]));
+  }
+
+  return names;
+}
+
+function explainSymbolKey(value) {
+  return cleanupNavName(value).toLowerCase();
+}
+
+function explainObjectLabel(objectType, objectId, objectName) {
+  const name = cleanupNavName(objectName);
+  const id = objectId !== undefined && objectId !== null ? String(objectId).trim() : "";
+  if (name && id) {
+    return `${name} (${id})`;
+  }
+  if (name) {
+    return name;
+  }
+  if (objectType && id) {
+    return `${objectType} ${id}`;
+  }
+  return "";
+}
+
+function explainSymbolEntryScore(entry) {
+  let score = 0;
+  if (entry.objectName) {
+    score += 4;
+  }
+  if (entry.objectId !== undefined && entry.objectId !== null) {
+    score += 4;
+  }
+  if (entry.scope === "parameter") {
+    score += 3;
+  } else if (entry.scope === "local") {
+    score += 2;
+  } else if (entry.scope === "global") {
+    score += 1;
+  }
+  return score;
+}
+
+function buildPrompt({ fileName, languageId, mode, source, question, code, callerContext, symbolContext, glossary, wasTruncated }) {
   const isSmallProcedure = code.length < 1600 && looksLikeNavProcedureOrTrigger(code);
-  const navFacts = extractNavFacts(code);
+  const navFacts = extractNavFacts(code, symbolContext);
   const task =
     mode === "question"
       ? question
@@ -1548,8 +1727,8 @@ function buildPrompt({ fileName, languageId, mode, source, question, code, calle
     ? "\nThe code was truncated to fit the configured input limit, so say when context may be missing."
     : "";
   const responseShape = isSmallProcedure
-    ? "\nKeep the answer under 120 words. Use exactly these sections: Summary, NAV details, Side effects. Mention each parameter by name and type if present. For := assignments, state what source variable is copied into what target variable. If there are no meaningful risks, do not add a risks section."
-    : "\nKeep the answer under 350 words. Use exactly these sections: Summary, Reads and filters, Writes and side effects, Calls. Do not include Open Questions or Likely Risks sections. If something is unknown, say it inline only when necessary and do not frame it as a bug. Only mention a warning when it is directly proven by the code, such as DELETEALL, COMMIT, MODIFY, INSERT, DELETE, or VALIDATE. For DELETEALL, say it deletes the current filtered set. When describing totals, name the exact expression or field being added, such as Total += Record.Field; do not replace it with a nearby business concept. Do not describe Boolean arguments as likely/default flags unless the called procedure name or parameter names prove that meaning. Do not mention SQL injection for SETFILTER placeholders. For Record.GET(...), say it retrieves by primary key using the supplied argument(s), not that it is likely a lookup key. Do not invent sums, totals, or aggregation unless the code shows +=, CALCSUMS, SUM, or an accumulator loop. Do not say a procedure call is inside EXIT(...) unless the exact syntax wraps that call in EXIT(. For IF/THEN EXIT(SomeCall(...)), say that branch returns SomeCall(...); do not say it skips processing. If this procedure delegates to a called procedure named Post*, say writes are delegated to that call unless the writes are visible here. For long positional procedure calls, read arguments in order and preserve which arguments are passed through from the current procedure parameters versus which arguments are literals, defaults, or record fields. Do not summarize the whole call from a later literal/default argument. Do not say quantities are zero unless the quantity argument positions themselves are literal 0; if quantity arguments are named parameters like QtyToBeShipped or QtyToBeInvoiced, say they are passed through.";
+    ? "\nKeep the answer under 120 words. Use exactly these sections: Summary, NAV details, Side effects. Ignore commented-out code in // line comments and { ... } block comments. Mention each parameter by name and type if present. For := assignments, state what source variable is copied into what target variable. If there are no meaningful risks, do not add a risks section. For DELETE or DELETEALL, say only the deletion proven by the exact statement and current filters."
+    : "\nKeep the answer under 350 words. Use exactly these sections: Summary, Reads and filters, Writes and side effects, Calls. Ignore commented-out code in // line comments and { ... } block comments; do not list assignments, comparisons, or commented-out examples as calls. Do not include Open Questions or Likely Risks sections. If something is unknown, say it inline only when necessary and do not frame it as a bug. Only mention a warning when it is directly proven by the code, such as DELETEALL, COMMIT, MODIFY, INSERT, DELETE, or VALIDATE. DELETE deletes the current record in that record variable; DELETEALL deletes only the current filtered set for that record variable. Do not say DELETEALL truncates, clears, purges, archives, cascades, deletes related records, or deletes every row in the table unless the supplied code proves that exact scope. When describing totals, name the exact expression or field being added, such as Total += Record.Field; do not replace it with a nearby business concept. Do not describe Boolean arguments as likely/default flags unless the called procedure name or parameter names prove that meaning. Do not mention SQL injection for SETFILTER placeholders. For Record.GET(...), say it retrieves by primary key using the supplied argument(s), not that it is likely a lookup key. Do not invent sums, totals, or aggregation unless the code shows +=, CALCSUMS, SUM, or an accumulator loop. Do not say a procedure call is inside EXIT(...) unless the exact syntax wraps that call in EXIT(. For IF/THEN EXIT(SomeCall(...)), say that branch returns SomeCall(...); do not say it skips processing. If this procedure delegates to a called procedure named Post*, say writes are delegated to that call unless the writes are visible here. For long positional procedure calls, read arguments in order and preserve which arguments are passed through from the current procedure parameters versus which arguments are literals, defaults, or record fields. Do not summarize the whole call from a later literal/default argument. Do not say quantities are zero unless the quantity argument positions themselves are literal 0; if quantity arguments are named parameters like QtyToBeShipped or QtyToBeInvoiced, say they are passed through.";
 
   const factsBlock = navFacts.length
     ? `\n\nExtracted NAV facts. Treat these as stronger evidence than object names or guesses:\n${navFacts.map((fact) => `- ${fact}`).join("\n")}`
@@ -1557,17 +1736,18 @@ function buildPrompt({ fileName, languageId, mode, source, question, code, calle
   const callersBlock = callerContext
     ? `\n\nKnown callers from workspace index. Use these as call context, but do not invent behavior from them:\n${callerContext}`
     : "";
+  const symbolBlock = symbolContext?.promptBlock || "";
   const glossaryBlock = buildGlossaryBlock(glossary, code);
 
   return [
     {
       role: "system",
       content:
-        "You are a senior Microsoft Dynamics NAV Classic C/AL. Treat the code as Dynamics NAV object text/C/AL unless the language is clearly AL. Do not explain it as JavaScript, C#, generic Pascal, or SQL. Know NAV semantics: := assignment, Record variables, implicit Rec/xRec, WITH record scopes, FlowFields, SETRANGE/SETFILTER/FIND/FINDSET/MODIFY/INSERT/DELETE/VALIDATE/CALCFIELDS/COMMIT, table triggers, codeunit procedures, pages, reports, and posting routines. In exported C/AL, @ numbers on procedures/variables are symbol IDs and carry no business meaning. FIND('-') positions a record using existing filters/key; it does not imply RESET. SETFILTER placeholders like %1 are normal NAV syntax and are not a risk by themselves. Be direct and concise. Do not pad simple procedures. Do not invent business rules, risks, validations, database writes, totals, record types, or callers that are not visible in the supplied code. Treat containing object names as weak metadata only; NAV objects named Functions, Management, Utilities, Common, or similar are often generic containers and do not prove business intent. Prefer evidence from the procedure signature, record types, field names, assignments, database calls, filters, and called procedures. If a total is accumulated, identify the exact right-hand expression from the assignment. If required context is missing, say what is missing instead of guessing."
+        "You are a senior Microsoft Dynamics NAV Classic C/AL. Treat the code as Dynamics NAV object text/C/AL unless the language is clearly AL. Do not explain it as JavaScript, C#, generic Pascal, or SQL. Ignore commented-out code in // line comments and { ... } block comments; comments can explain intent, but they are not executable behavior and must not create calls, reads, writes, assignments, deletes, or risks. Know NAV semantics: := assignment, Record variables, implicit Rec/xRec, WITH record scopes, FlowFields, SETRANGE/SETFILTER/FIND/FINDSET/MODIFY/INSERT/DELETE/DELETEALL/VALIDATE/CALCFIELDS/COMMIT, table triggers, codeunit procedures, pages, reports, and posting routines. In exported C/AL, @ numbers on procedures/variables are symbol IDs and carry no business meaning. FIND('-') positions a record using existing filters/key; it does not imply RESET. SETFILTER placeholders like %1 are normal NAV syntax and are not a risk by themselves. DELETE deletes the current record in the record variable. DELETEALL deletes the current filtered set for the record variable; active filters and temporary status determine scope. Do not infer truncate, cascade, archive, purge, related-record deletion, or whole-table deletion unless the supplied code proves it. Be direct and concise. Do not pad simple procedures. Do not invent business rules, risks, validations, database writes, totals, record types, or callers that are not visible in the supplied code. Treat containing object names as weak metadata only; NAV objects named Functions, Management, Utilities, Common, or similar are often generic containers and do not prove business intent. Prefer evidence from the procedure signature, record types, field names, assignments, database calls, filters, and called procedures. Use the supplied symbol lookup to name dereferenced records/objects as Object Name (ID), such as Sales Line (37), instead of only the variable name. If a total is accumulated, identify the exact right-hand expression from the assignment. If required context is missing, say what is missing instead of guessing."
     },
     {
       role: "user",
-      content: `${task}${responseShape}\n\nFile: ${fileName}\nLanguage: ${languageId}\nSource: ${source || "unknown"}${truncationNote}${glossaryBlock}${callersBlock}${factsBlock}\n\nCode:\n\`\`\`\n${code}\n\`\`\``
+      content: `${task}${responseShape}\n\nFile: ${fileName}\nLanguage: ${languageId}\nSource: ${source || "unknown"}${truncationNote}${glossaryBlock}${callersBlock}${symbolBlock}${factsBlock}\n\nCode:\n\`\`\`\n${code}\n\`\`\``
     }
   ];
 }
@@ -1610,8 +1790,8 @@ function looksLikeNavProcedureOrTrigger(code) {
   );
 }
 
-function extractNavFacts(code) {
-  const cleanCode = stripNavObjectContext(code);
+function extractNavFacts(code, symbolContext) {
+  const cleanCode = stripNavComments(stripNavObjectContext(code));
   const facts = [];
   const signature = cleanCode.match(/^\s*(?:LOCAL\s+)?PROCEDURE\s+("?[^"(@]+"?|[A-Za-z_][A-Za-z0-9_]*)@?[0-9]*\s*\(([^)]*)\)\s*;?/im);
   if (signature) {
@@ -1635,7 +1815,7 @@ function extractNavFacts(code) {
   }
 
   for (const validate of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.VALIDATE\s*\(\s*([^,\)]+)(?:,\s*([^\)]+))?\)/gi)) {
-    const record = cleanupNavExpression(validate[1]);
+    const record = explainNavSymbolReference(validate[1], symbolContext);
     const field = cleanupNavExpression(validate[2]);
     const value = validate[3] ? cleanupNavExpression(validate[3]) : undefined;
     facts.push(value
@@ -1644,7 +1824,7 @@ function extractNavFacts(code) {
   }
 
   for (const modify of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.(MODIFY|INSERT|DELETE)\s*(?:\(\s*(TRUE|FALSE)?\s*\))?/gi)) {
-    const record = cleanupNavExpression(modify[1]);
+    const record = explainNavSymbolReference(modify[1], symbolContext);
     const operation = modify[2].toUpperCase();
     const runTrigger = modify[3] ? modify[3].toUpperCase() : undefined;
     const triggerNote = runTrigger === "TRUE"
@@ -1652,30 +1832,33 @@ function extractNavFacts(code) {
       : runTrigger === "FALSE"
         ? " with triggers disabled"
         : "";
-    facts.push(`Database write: ${record}.${operation}${triggerNote}.`);
+    const scopeNote = operation === "DELETE"
+      ? " deletes the current record in that record variable"
+      : "";
+    facts.push(`Database write: ${record}.${operation}${scopeNote}${triggerNote}.`);
   }
 
   for (const deleteAll of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.DELETEALL\s*(?:\(\s*(TRUE|FALSE)?\s*\))?/gi)) {
-    const record = cleanupNavExpression(deleteAll[1]);
+    const record = explainNavSymbolReference(deleteAll[1], symbolContext);
     const runTrigger = deleteAll[2] ? deleteAll[2].toUpperCase() : undefined;
     const triggerNote = runTrigger === "TRUE"
       ? " with delete triggers enabled"
       : runTrigger === "FALSE"
         ? " with delete triggers disabled"
         : "";
-    facts.push(`Database write: ${record}.DELETEALL deletes all records in the current filtered set${triggerNote}.`);
+    facts.push(`Database write: ${record}.DELETEALL deletes only the current filtered set for that record variable${triggerNote}.`);
   }
 
   for (const reset of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.RESET\s*\(\s*\)/gi)) {
-    facts.push(`Record state: ${cleanupNavExpression(reset[1])}.RESET clears filters, marks, and key selection on that record variable.`);
+    facts.push(`Record state: ${explainNavSymbolReference(reset[1], symbolContext)}.RESET clears filters, marks, and key selection on that record variable.`);
   }
 
   for (const key of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.SETCURRENTKEY\s*\(([^\)]*)\)/gi)) {
-    facts.push(`Key selection: ${cleanupNavExpression(key[1])}.SETCURRENTKEY selects key fields ${cleanupNavExpression(key[2])}.`);
+    facts.push(`Key selection: ${explainNavSymbolReference(key[1], symbolContext)}.SETCURRENTKEY selects key fields ${cleanupNavExpression(key[2])}.`);
   }
 
   for (const filter of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.(SETRANGE|SETFILTER)\s*\(\s*([^,\)]+)(?:,\s*([^\)]*))?\)/gi)) {
-    const record = cleanupNavExpression(filter[1]);
+    const record = explainNavSymbolReference(filter[1], symbolContext);
     const operation = filter[2].toUpperCase();
     const field = cleanupNavExpression(filter[3]);
     const value = filter[4] ? cleanupNavExpression(filter[4]) : undefined;
@@ -1688,7 +1871,7 @@ function extractNavFacts(code) {
   }
 
   for (const find of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.(FINDSET|FINDFIRST|FINDLAST|FIND)\s*(?:\(([^\)]*)\))?/gi)) {
-    const record = cleanupNavExpression(find[1]);
+    const record = explainNavSymbolReference(find[1], symbolContext);
     const argument = find[3] ? cleanupNavExpression(find[3]) : undefined;
     facts.push(argument
       ? `Record read: ${record}.${find[2].toUpperCase()}(${argument}) searches/positions records using the current filters/key; it does not clear filters by itself.`
@@ -1696,7 +1879,41 @@ function extractNavFacts(code) {
   }
 
   for (const calc of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.(CALCFIELDS|CALCSUMS)\s*\(([^\)]*)\)/gi)) {
-    facts.push(`${calc[2].toUpperCase()}: ${cleanupNavExpression(calc[1])} calculates ${cleanupNavExpression(calc[3])}.`);
+    facts.push(`${calc[2].toUpperCase()}: ${explainNavSymbolReference(calc[1], symbolContext)} calculates ${cleanupNavExpression(calc[3])}.`);
+  }
+
+  const knownRecordMethods = new Set([
+    "CALCFIELDS",
+    "CALCSUMS",
+    "DELETE",
+    "DELETEALL",
+    "FIND",
+    "FINDFIRST",
+    "FINDLAST",
+    "FINDSET",
+    "INSERT",
+    "MODIFY",
+    "RESET",
+    "SETCURRENTKEY",
+    "SETFILTER",
+    "SETRANGE",
+    "VALIDATE"
+  ]);
+  for (const dottedCall of cleanCode.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*|"[^"]+")\.([A-Za-z_][A-Za-z0-9_]*)\s*\(([^\)]*)\)/gi)) {
+    if (!isExecutableCallStatement(cleanCode, dottedCall.index)) {
+      continue;
+    }
+
+    const methodName = dottedCall[2].toUpperCase();
+    if (knownRecordMethods.has(methodName)) {
+      continue;
+    }
+
+    const receiver = cleanupNavExpression(dottedCall[1]);
+    const resolvedReceiver = explainNavSymbolReference(receiver, symbolContext);
+    if (resolvedReceiver !== receiver) {
+      facts.push(`Object call: ${resolvedReceiver}.${dottedCall[2]}(${cleanupNavExpression(dottedCall[3])}).`);
+    }
   }
 
   if (/\bCOMMIT\s*;?/i.test(cleanCode)) {
@@ -1707,9 +1924,14 @@ function extractNavFacts(code) {
     facts.push(`EXIT call: returns ${exitCall.name}(${summarizeNavArguments(exitCall.args)}).`);
   }
 
-  for (const call of cleanCode.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)(?:@?[0-9]*)?\s*\(([^:=;]*)\)\s*;/gm)) {
+  for (const line of cleanCode.split(/\r?\n/)) {
+    const call = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)(?:@?[0-9]*)?\s*\((.*)\)\s*;?\s*$/);
+    if (!call || /[:=<>]/.test(call[2])) {
+      continue;
+    }
+
     const name = call[1];
-    if (!["IF", "WHILE", "REPEAT", "CASE", "WITH"].includes(name.toUpperCase())) {
+    if (!["IF", "WHILE", "REPEAT", "CASE", "WITH", "UNTIL", "EXIT"].includes(name.toUpperCase())) {
       facts.push(`Procedure call: ${name}(${cleanupNavExpression(call[2])}).`);
     }
   }
@@ -1872,6 +2094,72 @@ function stripNavObjectContext(code) {
   return String(code || "").replace(/^NAV object context:[\s\S]*?\n\n/, "");
 }
 
+function stripNavComments(code) {
+  const text = String(code || "");
+  let result = "";
+  let inString = false;
+  let inBlockComment = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (inBlockComment) {
+      if (char === "}") {
+        inBlockComment = false;
+      }
+      result += char === "\n" || char === "\r" ? char : " ";
+      continue;
+    }
+
+    if (inString) {
+      result += char;
+      if (char === "'" && next === "'") {
+        result += next;
+        index += 1;
+      } else if (char === "'") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "'") {
+      inString = true;
+      result += char;
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      while (index < text.length && text[index] !== "\n" && text[index] !== "\r") {
+        result += " ";
+        index += 1;
+      }
+      index -= 1;
+      continue;
+    }
+
+    if (char === "{") {
+      inBlockComment = true;
+      result += " ";
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
+function isExecutableCallStatement(code, index) {
+  const lineStart = Math.max(code.lastIndexOf("\n", index), code.lastIndexOf("\r", index)) + 1;
+  const prefix = code.slice(lineStart, index).trim();
+  if (!prefix) {
+    return true;
+  }
+
+  return /^(?:IF|THEN|ELSE|REPEAT|UNTIL|WHILE|DO|BEGIN)\b/i.test(prefix);
+}
+
 function parseNavParameters(parameterText) {
   if (!parameterText.trim()) {
     return [];
@@ -1900,6 +2188,11 @@ function cleanupNavExpression(value) {
 
 function cleanupNavName(value) {
   return String(value || "").replace(/^"|"$/g, "").trim();
+}
+
+function explainNavSymbolReference(value, symbolContext) {
+  const symbol = cleanupNavExpression(value);
+  return symbolContext?.labelsBySymbol?.get?.(explainSymbolKey(symbol)) || symbol;
 }
 
 async function callChatCompletion(config, messages) {
@@ -2784,6 +3077,10 @@ function variableSubtypeObjectType(dataType) {
       return "XMLport";
     case "query":
       return "Query";
+    case "form":
+      return "Page";
+    case "dataport":
+      return "XMLport";
     default:
       return undefined;
   }
@@ -3380,12 +3677,11 @@ async function diagnosticsForDocument(navIndex, uri, analysis, objects) {
 
   const document = await openNavSearchDocument(uri);
   if (document) {
-    const beginCount = countKeywordAcrossDocument(document, "begin");
-    const endCount = countKeywordAcrossDocument(document, "end");
-    if (beginCount !== endCount) {
+    const blockBalance = analyzeNavBlockBalance(document);
+    if (!blockBalance.balanced) {
       diagnostics.push(new vscode.Diagnostic(
-        new vscode.Range(Math.max(0, document.lineCount - 1), 0, Math.max(0, document.lineCount - 1), document.lineAt(Math.max(0, document.lineCount - 1)).text.length),
-        `Unbalanced BEGIN/END count (${beginCount} BEGIN, ${endCount} END).`,
+        blockBalance.range,
+        blockBalance.message,
         vscode.DiagnosticSeverity.Warning
       ));
     }
@@ -3404,18 +3700,101 @@ async function diagnosticsForDocument(navIndex, uri, analysis, objects) {
   return diagnostics;
 }
 
-function countKeywordAcrossDocument(document, keyword) {
-  let count = 0;
-  for (let index = 0; index < document.lineCount; index += 1) {
-    count += countNavKeyword(document.lineAt(index).text, keyword);
+function analyzeNavBlockBalance(document) {
+  const stack = [];
+  let unmatchedEnd = undefined;
+  let openerCount = 0;
+  let endCount = 0;
+
+  for (let lineNumber = 0; lineNumber < document.lineCount; lineNumber += 1) {
+    const line = document.lineAt(lineNumber).text;
+    for (const token of navBlockTokens(line)) {
+      if (token.kind === "begin" || token.kind === "case") {
+        stack.push({ ...token, lineNumber });
+        openerCount += 1;
+        continue;
+      }
+
+      endCount += 1;
+      if (stack.length) {
+        stack.pop();
+      } else if (!unmatchedEnd) {
+        unmatchedEnd = { ...token, lineNumber };
+      }
+    }
   }
-  return count;
+
+  if (!unmatchedEnd && !stack.length) {
+    return { balanced: true };
+  }
+
+  const problem = unmatchedEnd || stack[stack.length - 1];
+  const line = document.lineAt(problem.lineNumber);
+  const keywordLength = problem.kind.length;
+  const range = new vscode.Range(
+    problem.lineNumber,
+    problem.character,
+    problem.lineNumber,
+    Math.min(line.text.length, problem.character + keywordLength)
+  );
+
+  return {
+    balanced: false,
+    range,
+    message: `Unbalanced C/AL block keywords (${openerCount} BEGIN/CASE, ${endCount} END).`
+  };
 }
 
-function countNavKeyword(line, keyword) {
-  const scrubbed = String(line || "").replace(/'([^']|'')*'/g, "''");
-  const pattern = new RegExp(`\\b${keyword}\\b`, "gi");
-  return [...scrubbed.matchAll(pattern)].length;
+function navBlockTokens(line) {
+  const scrubbed = scrubNavLineForKeywordScan(line);
+  const tokens = [];
+  const pattern = /\b(BEGIN|CASE|END)\b/gi;
+  for (const match of scrubbed.matchAll(pattern)) {
+    tokens.push({
+      kind: match[1].toLowerCase(),
+      character: match.index || 0
+    });
+  }
+  return tokens;
+}
+
+function scrubNavLineForKeywordScan(line) {
+  const text = String(line || "");
+  let result = "";
+  let inString = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (inString) {
+      if (char === "'" && next === "'") {
+        result += "  ";
+        index += 1;
+        continue;
+      }
+      if (char === "'") {
+        inString = false;
+      }
+      result += " ";
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      result += " ".repeat(text.length - index);
+      break;
+    }
+
+    if (char === "'") {
+      inString = true;
+      result += " ";
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
 }
 
 function diagnosticSeverity(severity) {
