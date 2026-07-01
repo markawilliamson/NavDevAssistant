@@ -1122,7 +1122,7 @@ async function completionItemsAtPosition(navIndex, document, position) {
     const item = new vscode.CompletionItem(field.name, vscode.CompletionItemKind.Field);
     item.insertText = fieldNameInsertText(field.name);
     item.detail = field.detail;
-    item.documentation = new vscode.MarkdownString(`NAV table field \`${field.name}\``);
+    item.documentation = fieldCompletionMarkdown(field);
     return item;
   });
 }
@@ -1142,7 +1142,7 @@ function buildParserMemberCompletionItems(targetType, targetObject, targetDocume
       addCompletionItem(items, field.name, vscode.CompletionItemKind.Field, {
         insertText: fieldNameInsertText(field.name),
         detail: targetObjectDisplay(targetObject, targetDocument, "field"),
-        documentation: `NAV table field ${field.name}${field.dataType ? ` : ${field.dataType}` : ""}`,
+        documentation: fieldDocumentationText(field),
         sortPrefix: "1"
       });
     }
@@ -2511,7 +2511,7 @@ async function documentSymbolsForDocument(navIndex, document) {
     children.push(groupDocumentSymbol("Fields", "Group", analysis.fields.map((field) =>
       new vscode.DocumentSymbol(
         field.name,
-        field.dataType || "",
+        fieldDetailDisplay(field),
         vscode.SymbolKind.Field,
         field.range,
         field.range
@@ -3125,14 +3125,58 @@ function fieldHoverMarkdown(field, objectDocument) {
   markdown.isTrusted = false;
 
   markdown.appendMarkdown("**Field**\n\n");
-  markdown.appendCodeblock(`${field.name} : ${field.dataType || "Unknown"}`, "text");
+  const typeDisplay = field.fieldClass
+    ? `${field.name} : ${field.dataType || "Unknown"} (${field.fieldClass})`
+    : `${field.name} : ${field.dataType || "Unknown"}`;
+  markdown.appendCodeblock(typeDisplay, "text");
   markdown.appendMarkdown(`\n${objectDocument.objectType} ${objectDocument.objectId} \`${objectDocument.objectName}\``);
 
   if (field.id !== undefined && field.id !== null) {
     markdown.appendMarkdown(`\n\nField ID: \`${field.id}\``);
   }
 
+  if (field.fieldClass) {
+    markdown.appendMarkdown(`\n\nFieldClass: \`${field.fieldClass}\``);
+  }
+
+  if (field.calcFormula) {
+    markdown.appendMarkdown("\n\nCalcFormula:\n\n");
+    markdown.appendCodeblock(field.calcFormula, "text");
+  }
+
   return markdown;
+}
+
+function fieldDetailDisplay(field) {
+  const parts = [];
+  if (field.dataType) {
+    parts.push(field.dataType);
+  }
+  if (field.fieldClass) {
+    parts.push(field.fieldClass);
+  }
+  return parts.join(" ");
+}
+
+function fieldCompletionMarkdown(field) {
+  const markdown = new vscode.MarkdownString(undefined, true);
+  markdown.isTrusted = false;
+  markdown.appendMarkdown(`NAV table field \`${field.name}\``);
+  const detail = fieldDetailDisplay(field);
+  if (detail) {
+    markdown.appendMarkdown(`\n\n\`${detail}\``);
+  }
+  if (field.calcFormula) {
+    markdown.appendMarkdown("\n\nCalcFormula:\n\n");
+    markdown.appendCodeblock(field.calcFormula, "text");
+  }
+  return markdown;
+}
+
+function fieldDocumentationText(field) {
+  const detail = fieldDetailDisplay(field);
+  const formula = field.calcFormula ? ` CalcFormula: ${field.calcFormula}` : "";
+  return `NAV table field ${field.name}${detail ? ` : ${detail}` : ""}${formula}`;
 }
 
 function procedureHoverMarkdown(match) {

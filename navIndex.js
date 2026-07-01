@@ -11,7 +11,7 @@ const DEFAULT_MAX_INDEX_FILE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_INDEX_CONCURRENCY = 8;
 const MAX_DEFINITION_RESULTS = 50;
 const MAX_REFERENCE_RESULTS = 500;
-const CACHE_VERSION = 7;
+const CACHE_VERSION = 8;
 const IDENTIFIER = /[A-Za-z_][A-Za-z0-9_]*/g;
 const KEYWORDS = new Set(
   [
@@ -1227,6 +1227,9 @@ function serializeField(field) {
     id: field.id,
     name: field.name,
     dataType: field.dataType,
+    fieldClass: field.fieldClass,
+    calcFormula: field.calcFormula,
+    properties: (field.properties || []).map(serializeNamedRange),
     range: serializeRange(field.range)
   };
 }
@@ -1236,6 +1239,9 @@ function hydrateField(raw) {
     id: raw.id,
     name: raw.name,
     dataType: raw.dataType,
+    fieldClass: raw.fieldClass || "",
+    calcFormula: raw.calcFormula || "",
+    properties: (raw.properties || []).map((property) => hydrateNamedRange(property)),
     range: hydrateRange(raw.range)
   };
 }
@@ -1360,6 +1366,8 @@ function analyzeText(uri, text) {
   const lines = text.split(/\r?\n/);
   let currentObject = undefined;
   let inFields = false;
+  let currentField = undefined;
+  let activeFieldProperty = undefined;
   const variableDeclarations = [];
 
   for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
@@ -1431,28 +1439,46 @@ function analyzeText(uri, text) {
     if (/^\s{2}FIELDS\b/i.test(line)) {
       inFields = true;
     } else if (inFields && /^\s{2}\}/.test(line)) {
+      activeFieldProperty = undefined;
+      currentField = undefined;
       inFields = false;
     }
 
     if (inFields) {
+      if (currentField && /^\s{4,}\}\s*;?\s*$/.test(line)) {
+        activeFieldProperty = undefined;
+        currentField = undefined;
+        continue;
+      }
+
       const fieldMatch = line.match(/^\s*\{\s*([0-9]+)\s*;[A-Za-z0-9]*\s*;([^;]+?)\s*;([A-Za-z][A-Za-z0-9 ]*)/);
       if (fieldMatch) {
         const [, fieldId, fieldName, fieldType] = fieldMatch;
         const cleanFieldName = fieldName.trim();
         const fieldRange = rangeForText(lineNumber, line, fieldName, cleanFieldName);
-        addDefinitionAtRange(definitions, uri, fieldRange, cleanFieldName, vscode.SymbolKind.Field, fieldId);
-        fields.push({
+        const field = {
           id: Number(fieldId),
           name: cleanFieldName,
           dataType: cleanupTypeName(fieldType),
+          fieldClass: "",
+          calcFormula: "",
+          properties: [],
           range: fieldRange
-        });
+        };
+        addDefinitionAtRange(definitions, uri, fieldRange, cleanFieldName, vscode.SymbolKind.Field, fieldId);
+        fields.push(field);
+        currentField = field;
+        activeFieldProperty = undefined;
         if (currentObject) {
           addDefinitionAtRange(definitions, uri, fieldRange, `${currentObject.name}.${cleanFieldName}`, vscode.SymbolKind.Field, `${currentObject.type} ${currentObject.id}`);
           addDefinitionAtRange(definitions, uri, fieldRange, `${currentObject.type} ${currentObject.name}.${cleanFieldName}`, vscode.SymbolKind.Field, `${currentObject.type} ${currentObject.id}`);
           addDefinitionAtRange(definitions, uri, fieldRange, `${currentObject.id}.${cleanFieldName}`, vscode.SymbolKind.Field, `${currentObject.type} ${currentObject.name}`);
           addDefinitionAtRange(definitions, uri, fieldRange, `${currentObject.type} ${currentObject.id}.${cleanFieldName}`, vscode.SymbolKind.Field, `${currentObject.type} ${currentObject.name}`);
         }
+      }
+
+      if (currentField) {
+        activeFieldProperty = collectTrackedFieldProperties(currentField, lineNumber, line, activeFieldProperty);
       }
     }
 
@@ -1588,6 +1614,92 @@ function signatureVariables(signature, lineNumber, line) {
   }
 
   return variables;
+}
+
+function collectTrackedFieldProperties(field, lineNumber, line, activeProperty) {
+  let active = activeProperty;
+  let searchStart = 0;
+
+  if (active) {
+    const result = appendTrackedFieldPropertyLine(field, active, lineNumber, line, 0);
+    if (result.active) {
+      return result.active;
+    }
+    active = undefined;
+    searchStart = result.nextIndex;
+  }
+
+  const propertyPattern = /\b(FieldClass|CalcFormula)\s*=\s*/gi;
+  propertyPattern.lastIndex = searchStart;
+
+  for (let match = propertyPattern.exec(line); match; match = propertyPattern.exec(line)) {
+    const property = {
+      name: trackedFieldPropertyName(match[1]),
+      startLine: lineNumber,
+      startCharacter: match.index,
+      valueParts: []
+    };
+    const result = appendTrackedFieldPropertyLine(field, property, lineNumber, line, propertyPattern.lastIndex);
+    if (result.active) {
+      return result.active;
+    }
+    propertyPattern.lastIndex = result.nextIndex;
+  }
+
+  return active;
+}
+
+function appendTrackedFieldPropertyLine(field, property, lineNumber, line, valueStart) {
+  const valueText = String(line || "").slice(valueStart);
+  const semicolonIndex = valueText.indexOf(";");
+  const valueEnd = semicolonIndex >= 0 ? valueStart + semicolonIndex : line.length;
+  const segment = line.slice(valueStart, valueEnd).trim();
+
+  if (segment) {
+    property.valueParts.push(segment);
+  }
+
+  if (semicolonIndex < 0) {
+    return {
+      active: property,
+      nextIndex: line.length
+    };
+  }
+
+  const value = property.valueParts.join(" ").replace(/\s+/g, " ").trim();
+  const range = new vscode.Range(
+    property.startLine,
+    property.startCharacter,
+    lineNumber,
+    valueEnd
+  );
+
+  setTrackedFieldProperty(field, property.name, value, range);
+  return {
+    active: undefined,
+    nextIndex: valueEnd + 1
+  };
+}
+
+function trackedFieldPropertyName(name) {
+  return /^fieldclass$/i.test(name) ? "FieldClass" : "CalcFormula";
+}
+
+function setTrackedFieldProperty(field, name, value, range) {
+  if (name === "FieldClass") {
+    field.fieldClass = value;
+  } else if (name === "CalcFormula") {
+    field.calcFormula = value;
+  }
+
+  const existing = field.properties.find((property) => property.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    existing.value = value;
+    existing.range = range;
+    return;
+  }
+
+  field.properties.push({ name, value, range });
 }
 
 function parseVariableType(variableType) {
